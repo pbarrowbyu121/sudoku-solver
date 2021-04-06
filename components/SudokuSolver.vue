@@ -12,7 +12,7 @@
             :key="step"
             v-for="step in stepsArr"
           >
-            {{ stepsArr.indexOf(step) }}{{ ")" }} {{ step }}
+            {{ stepsArr.indexOf(step) + 1}}{{ ")" }} {{ step }}
           </div>
         </div>
       </div>
