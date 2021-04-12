@@ -42,7 +42,7 @@
       <div class="grid grid-cols-2" v-if="puzzleString.includes('.') || puzzleString === ''">
         <button
           class="bg-gray-300 p-2 border-2 rounded-sm border-gray-400 border-double"
-          @click="onSolve(origPuzzleString)"
+          @click="solve()"
         >
           Solve Puzzle
         </button>
@@ -77,7 +77,7 @@ export default {
   data() {
     return {
       origPuzzleString:
-        "697.....2..1972.63..3..679.912...6.737426.95.8657.9.241486932757.9.24..6..68.7..9",
+        "...26.7.168..7..9.19...45..82.1...4...46.29...5...3.28..93...74.4..5..367.3.18...",
       puzzleString: "",
       stepsArr: [],
       possSolutions: []
@@ -149,10 +149,12 @@ export default {
           val: val
         }
         this.stepsArr = [...this.stepsArr, newStepObj]
-        // this.stepsArr.push("Naked Single added " + val + " at " + obj.cellAddr);
+        // delete this cell from possible solutions
+        this.deleteCellFromSol(cellObj.cellAddr)
+        // delete this value from rows and cols in same row and col as this cell
+        this.deleteSolFromRowAndCol(cellObj.col, cellObj.row, val)
         let newPuzzString = this.addSolToStr(puzzleStringInput, loc, val);
         this.puzzleString = newPuzzString
-        console.log(newStepObj.step + ":", newStepObj.method + " added ", newStepObj.val, "at ", newStepObj.cellAddr)
         console.log(newStepObj.method + " added ", newStepObj.val, "at ", newStepObj.cellAddr)
         return true
       } else {
@@ -171,7 +173,6 @@ export default {
         let rowA = this.possSolutions.filter(cellObj => cellObj[rowOrCol] == filterVal);
         // take all the solutions for a given row or column and put them in one array
         rowA.forEach(cellObj => (rowSols = rowSols.concat(cellObj.possSolArr)));
-        console.log(rowOrCol, filterVal, "solutions: ", rowSols)
         // cycle through each possible solution. If it only appears once in the row or column then it's a HIDDEN SINGLE
         for (let rowColCellIndex = 0; rowColCellIndex < rowA.length; rowColCellIndex++) {
           for (let possSolIndex = 0; possSolIndex < rowA[rowColCellIndex].possSolArr.length; possSolIndex++) {
@@ -192,6 +193,10 @@ export default {
                 testSol
               )
               this.puzzleString = newPuzzString
+              // delete this cell from possible solutions
+              this.deleteCellFromSol(testCell.cellAddr)
+              // delete this value from rows and cols in same row and col as this cell
+              this.deleteSolFromRowAndCol(testCell.col, testCell.row, testSol)
               // console.log(newStepObj.step + ":", newStepObj.method + " added ", newStepObj.val, "at ", newStepObj.cellAddr)
               console.log(newStepObj.method + " added ", newStepObj.val, "at ", newStepObj.cellAddr)
               return true
@@ -223,8 +228,13 @@ export default {
                 val: testVal
               }
               this.stepsArr = [...this.stepsArr, newStepObj]
+              // add solution to the puzzle string
               var loc = this.getLoc(regionSols[regionSolIndex].cellAddr);
               this.puzzleString = this.addSolToStr(puzzleStringInput, loc, testVal);
+              // delete cell from possSolutions array
+              this.deleteCellFromSol(regionSols[regionSolIndex].cellAddr)
+              // delete this value from rows and cols in same row and col as this cell
+              this.deleteSolFromRowAndCol(regionSols[regionSolIndex].col, regionSols[regionSolIndex].row, testVal)
               // console.log(newStepObj.step + ":", newStepObj.method + " added ", newStepObj.val, "at ", newStepObj.cellAddr)
               console.log(newStepObj.method + " added ", newStepObj.val, "at ", newStepObj.cellAddr)
               return true
@@ -242,6 +252,7 @@ export default {
 
       // focus on a digit 1-9 at a time
       for (let testDigit = 1; testDigit <= 9; testDigit++) {
+        console.log("testDigit", testDigit)
         // create an object to store possible row candidates where digit appears 2x
         let rocCandidatesForDigit = {
           digit: testDigit,
@@ -257,7 +268,8 @@ export default {
           // let rocA = []
           let candidateRocsObj = {
               roc: x1,
-              cors: []
+              cors: [],
+              cellObjs: []
           }
           
           // filter possSolutions for cells in the x1 row (or column)
@@ -265,17 +277,16 @@ export default {
           // take all the solutions for a given row or column and put them in one array to see if testDigit occurs 2x
           rocA.forEach(cellObj => cellObj.possSolArr.forEach(possSol => {
             rocSols.push(possSol)
-            // rowSolsAddr.push(cellObj.cellAddr)
           }))
   
           // see if testDigit occurs two times in possible solutions for a given row (or column)
           if (this.countOccurrences(rocSols, testDigit) == 2) {
             // if testDigit does occur twice, get the cells in this row that have that digit, put in cellsWithDigit array
             let cellsWithDigit = rowOrCol === "row" ? this.possSolutions.filter(cellObj => cellObj.possSolArr.includes(testDigit) && cellObj.row === filterVal) : this.possSolutions.filter(cellObj => cellObj.possSolArr.includes(testDigit) && cellObj.col === filterVal)
-            
+            candidateRocsObj.cellObjs = cellsWithDigit
             candidateRocsObj.cors = rowOrCol === "row" ? [cellsWithDigit[0].col, cellsWithDigit[1].col] : [cellsWithDigit[0].row, cellsWithDigit[1].row]
-            // console.log("row", x1, "sees 4 twice in column", cellsWithDigit[0].col, "and column", cellsWithDigit[1].col)
             rocCandidatesForDigit.candidateRocs.push(candidateRocsObj)
+            // console.log("rocCandidatesForDigit", rocCandidatesForDigit)
           }
         }
         
@@ -283,6 +294,8 @@ export default {
         let result = rocCandidatesForDigit.candidateRocs.reduce( (acc, v, i) =>
           acc.concat(rocCandidatesForDigit.candidateRocs.slice(i+1).map( w => [v, w] )),
           []);
+
+          console.log("result", result)
 
         // compare rows to see if they have columns in common where digit occurs, call that column 'connection'
         for (let i = 0; i < result.length; i++) {
@@ -297,27 +310,48 @@ export default {
             } else {
               pair.connection = pair[0].cors[1]
             }
+            // the two cells NOT in the connection column (or row)
+            let pairCellCombo = []
+            if (rowOrCol === "row") {
+              pairCellCombo = [...pair[0].cellObjs, ...pair[1].cellObjs].filter(obj => obj.col !== pair.connection)
+            } else {
+              pairCellCombo = [...pair[0].cellObjs, ...pair[1].cellObjs].filter(obj => obj.row !== pair.connection)
+            }
 
+            // list of cells seen by both of the above cells not in the connection column (or row)
+            // console.log("pairCellCombo", pairCellCombo[0], pairCellCombo[1])
+            let seenByBoth = this.inBoth(this.seenCells(pairCellCombo[0]), this.seenCells(pairCellCombo[1]))
+            if (rowOrCol === "row") {
+              seenByBoth = seenByBoth.filter(obj => obj.col !== pair.connection)
+            } else {
+              seenByBoth = seenByBoth.filter(obj => obj.row !== pair.connection)
+            }
+            // console.log("seen by both", seenByBoth)
             skyScrapingPairs.push(pair)
 
             // get cells that are not in the connection cor but have this digit
             // create array of cells to be altered
-            let alterArr = []
-            if(rowOrCol === "row") {
-              alterArr = this.possSolutions.filter(obj => testArr.includes(obj.col) && obj.col !== pair.connection && obj.possSolArr.includes(testDigit) && ![pair[0].roc, pair[1].roc].includes(obj.row)) 
-            } else {
-              alterArr = this.possSolutions.filter(obj => testArr.includes(obj.row) && obj.row !== pair.connection && obj.possSolArr.includes(testDigit) && ![pair[0].roc, pair[1].roc].includes(obj.col)) 
-            }
+            let alterArr = seenByBoth.filter(obj => obj.possSolArr.includes(testDigit))
+            // if(rowOrCol === "row") {
+            //   alterArr = this.possSolutions.filter(obj => testArr.includes(obj.col) && obj.col !== pair.connection && obj.possSolArr.includes(testDigit) && ![pair[0].roc, pair[1].roc].includes(obj.row)) 
+            // } else {
+            //   alterArr = this.possSolutions.filter(obj => testArr.includes(obj.row) && obj.row !== pair.connection && obj.possSolArr.includes(testDigit) && ![pair[0].roc, pair[1].roc].includes(obj.col)) 
+            // }
             
             // if the array of cells to be altered is not empty
             if (alterArr.length > 0) {
+              // console.log("alterArr", alterArr)
               
+              // list of cells NOT being altered
               let keepArr = this.possSolutions.filter(obj => !alterArr.includes(obj))
               let alteredCells = []
               alterArr.forEach(obj => {
+                // list of cell addresses being altered. Will be part of step object added to step array
                 alteredCells = [...alteredCells, obj.cellAddr]
-                obj.possSolArr = obj.possSolArr.filter(sol => sol !== 4)
+                // get rid of the solution from the cell object
+                this.deleteSolFromCell(obj.cellAddr, testDigit)
               })
+              // create new object to add to steps array
               let newStepObj = {
                   // step: this.stepsArr.length + 1,
                   method: "Skyscraping " + rowOrCol,
@@ -325,14 +359,13 @@ export default {
                   cellAddr: alteredCells.join(', '),
                   val: testDigit
               }
+              // add new step object if it's not already there
               if(!this.arrayIncludesObject(this.stepsArr, newStepObj)) {
                 this.stepsArr.push(newStepObj)
                 this.possSolutions = [...keepArr, ...alterArr]
                 if (this.puzzleString === '') {
                   this.puzzleString = this.origPuzzleString
                 }
-                // console.log("alterArr after", alterArr)
-                // console.log("keepArr", keepArr)
                 console.log("SKYSCRAPING", rowOrCol, "removed", testDigit, "from", newStepObj.cellAddr)
                 return true
               }
@@ -341,6 +374,41 @@ export default {
         }
       }
       return false
+    },
+    // given a cell, return array of all cells "seen" by given cell (cells in same row, column, or region)
+    seenCells(cellObj) {
+      let seenCells = this.possSolutions.filter(obj => obj.cellAddr !== cellObj.cellAddr && (obj.row === cellObj.row || obj.col === cellObj.col || obj.region === cellObj.region))
+      return seenCells
+    },
+    // given two Arrays of objects, find objects occurring in both
+    inBoth(arr1, arr2) {
+      let result = []
+      arr1.forEach(obj => {if(this.arrayIncludesObject(arr2, obj)) {result.push(obj)}})
+      arr2.forEach(obj => {if (this.arrayIncludesObject(arr1, obj) && !this.arrayIncludesObject(result, obj)) {result.push(obj)}})
+      return result
+    },
+    // function to delete cell obj from possible solutions (used when solution for that cell is found)
+    deleteCellFromSol(cellAddr) {
+      this.possSolutions = this.possSolutions.filter(obj => obj.cellAddr !== cellAddr)
+    },
+    // delete solution from given cell
+    deleteSolFromCell(cellAddr, val) {
+      let keepArr = []
+      let alterArr = []
+      keepArr = this.possSolutions.filter(obj => obj.cellAddr !== cellAddr)
+      alterArr = this.possSolutions.filter(obj => obj.cellAddr === cellAddr)
+      alterArr[0].possSolArr = alterArr[0].possSolArr.filter(val => val !== val)
+      this.possSolutions = [...keepArr, ...alterArr]
+    },
+    // function to get rid of value in possible solutions in the same row and column
+    deleteSolFromRowAndCol(col, row, deleteVal) {
+      let possSolutions = this.possSolutions
+
+      let alterArr = possSolutions.filter(obj => obj.col === col || obj.row === row)
+      let keepArr = possSolutions.filter(obj => obj.col !== col && obj.row !== row)
+      alterArr.forEach(obj => obj.possSolArr = obj.possSolArr.filter(val => val !== deleteVal))
+      possSolutions = [...alterArr, ...keepArr]
+      // console.log("possSolutions", possSolutions)
     },
     // function to compare two objects (keys must be in same order)
     compareObjects(obj1, obj2) {
@@ -351,37 +419,58 @@ export default {
     arrayIncludesObject(arr, obj) {
       return arr.filter(object => this.compareObjects({...object}, obj)).length > 0 ? true : false
     },
+    solve() {
+      let intId = setInterval(() => {
+        if(this.puzzleString === '') {
+          this.solveStep(this.origPuzzleString)
+        } else {
+          this.solveStep(this.puzzleString)
+        }
+        if(!this.puzzleString.includes('.') || !this.solveStep(this.puzzleString)) {
+          console.log("done")
+          clearInterval(intId)
+        }
+        this.scrollToEnd()
+      }, 100)
+    },
     solveStep(newPuzzle) {
       // if puzzleString is complete then stop running
       if (!newPuzzle.includes(".")) {
+
         // console.log("solved");
         console.log("solution", newPuzzle);
         return false;
       }
+      if (this.puzzleString === '') {
+        this.puzzleString = newPuzzle
+      }
 
-      // STEP 1: Find set of all possible solutions for each cell
-      this.possSolutions = this.getPossSolutions(newPuzzle)
-
+      // STEP 1: Find set of all possible solutions for each cell ONLY if it hasn't been done yet. 
+      if(this.possSolutions.length ===0) {
+        console.log("getting possible solutions")
+        this.possSolutions = this.getPossSolutions(newPuzzle)
+      }
+      
       // // STEP 2: NAKED SINGLES, Insert all solutions from cells with one possible solution
-      // if (this.getNakedSingles(newPuzzle)) {
-      //   return true
-      // } else {
-      //   console.log("Step", (this.stepsArr.length + 1) + ": NAKED SINGLES yielded no results")
-      // }
+      if (this.getNakedSingles(newPuzzle)) {
+        return true
+      } else {
+        console.log("Step", (this.stepsArr.length + 1) + ": NAKED SINGLES yielded no results")
+      }
 
       // STEP 3: Find HIDDEN SINGLES by row then by column
-      // if (this.getHiddenSingles(newPuzzle)) {
-      //   return true
-      // } else {
-      //   console.log("Step", (this.stepsArr.length + 1) + ": HIDDEN SINGLES yielded no results")
-      // }
+      if (this.getHiddenSingles(newPuzzle)) {
+        return true
+      } else {
+        console.log("Step", (this.stepsArr.length + 1) + ": HIDDEN SINGLES yielded no results")
+      }
 
       // // STEP 4: Find REGION SINGLES, solutions unique in a region
-      // if (this.getRegionSingles(newPuzzle)) {
-      //   return true
-      // } else {
-      //   console.log("Step", (this.stepsArr.length + 1) + ": REGION SINGLES yielded no results")
-      // }
+      if (this.getRegionSingles(newPuzzle)) {
+        return true
+      } else {
+        console.log("Step", (this.stepsArr.length + 1) + ": REGION SINGLES yielded no results")
+      }
 
       // METHOD 5: Find SKYSCRAPER patterns to eliminate some solutions
       if (this.skyscraperPatternRoc("row")) {
@@ -395,8 +484,6 @@ export default {
       } else {
         console.log("Step", (this.stepsArr.length + 1) + ": SKYSCRAPER PATTERN COLS yielded no results")
       }
-
-      // this.scrollToEnd()
     },
     // object for each cell including address info and possible solutions for that cell
     CellObj(cellAddr, row, col, stringLoc, region, possSolArr) {
@@ -551,6 +638,7 @@ export default {
     },
     scrollToEnd() {
       let stepsList = this.$el.querySelector("#steps-list");
+      // console.log("stepsList height", stepsList.scrollHeight)
       
       stepsList.scrollTop = stepsList.scrollHeight;
     }
